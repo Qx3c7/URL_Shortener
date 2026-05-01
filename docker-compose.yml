@@ -1,0 +1,35 @@
+services:
+  # Serwis bazy danych
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: pass
+      POSTGRES_DB: shortener
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d shortener"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Serwis do tworzenia linków (POST /shorten)
+  write-service:
+    build: ./write_service
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://user:pass@db:5432/shortener
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # Serwis do przekierowań (GET /{id})
+  read-service:
+    build: ./read_service
+    ports:
+      - "8001:8000"
+    environment:
+      DATABASE_URL: postgresql://user:pass@db:5432/shortener
+    depends_on:
+      db:
+        condition: service_healthy
