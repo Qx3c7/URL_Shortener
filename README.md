@@ -1,6 +1,6 @@
 # Rozproszony System Skracania Linków
 
-Projekt przedstawia architekturę rozproszoną aplikacji do skracania adresów URL, podzieloną na dwa niezależne serwisy korzystające ze wspólnej bazy danych PostgreSQL.
+Projekt przedstawia architekturę rozproszoną aplikacji do skracania adresów URL, podzieloną na dwa niezależne serwisy współpracujące z klastrem bazy danych Cassandra.
 
 ## Architektura systemu
 
@@ -8,7 +8,7 @@ Aplikacja składa się z następujących komponentów:
 
 *   **Write Service (Port 8000)**: Odpowiada za przyjmowanie długich adresów URL, generowanie unikalnych identyfikatorów Base62 oraz zapisywanie danych w bazie.
 *   **Read Service (Port 8001)**: Obsługuje żądania przekierowań, sprawdza ważność linku i usuwa wygasłe wpisy.
-*   **PostgreSQL**: Centralny magazyn danych przechowujący relacje między krótkimi ID a oryginalnymi adresami URL.
+*   **Klaster Apache Cassandra (Port 9042)**: Składa się z dwóch niezależnych węzłów (cassandra-node1 jako Seed Node oraz cassandra-node2) zapewniających wysoką dostępność, odporność na awarie (Fault Tolerance) oraz replikację danych na poziomie klastra.
 
 ## Wymagania
 
@@ -22,7 +22,7 @@ Aplikacja składa się z następujących komponentów:
     ```powershell
     docker-compose up --build
     ```
-3.  Poczekaj, aż wszystkie kontenery zgłoszą status `Healthy` lub `Started`.
+3.  Poczekaj, aż wszystkie kontenery zgłoszą status `Healthy` lub `Started`. 
 
 ---
 
@@ -50,12 +50,10 @@ Adres: http://localhost:8001/{identyfikator}
 ## Logika biznesowa i parametry
 Algorytm ID: Identyfikatory są generowane na podstawie fragmentów UUID konwertowanych do systemu Base62.  
 
-Czas życia (TTL): Każdy link jest ważny dokładnie przez 300 sekund (5 minut) od momentu utworzenia.  
-
 Obsługa błędów:
     
 * 404 Not Found: Gdy identyfikator nie istnieje w bazie danych.  
 
-* 410 Gone: Gdy link wygasł (zostanie on wtedy automatycznie usunięty z bazy danych).
+* 500 Internal Server Error: W przypadku problemów z komunikacją wewnątrz sieci rozproszonej.
 
 Przekierowanie: Wykorzystywany jest status HTTP 307 (Temporary Redirect).
