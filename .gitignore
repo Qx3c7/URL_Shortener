@@ -1,18 +1,20 @@
 # Python
 __pycache__/
-*.py[cod]
-*$py.class
+*.pyc
+*.pyo
+*.pyd
 .venv/
 venv/
+ENV/
+env/
 
-# Docker/Baza danych
-postgres_data/
+# Środowisko i bazy (Docker wolumeny zostają na dysku)
+.env
+cassandra-data1/
+cassandra-data2/
 
-# Środowisko i IDE
+# IDE i systemowe
 .idea/
 .vscode/
-.env
-
-# Windows
+.DS_Store
 Thumbs.db
-desktop.ini

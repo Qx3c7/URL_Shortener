@@ -1,24 +1,47 @@
-from sqlalchemy import create_engine, Column, String, Float
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
-import os
+import time
+from cassandra.cluster import Cluster
+from cassandra.cluster import NoHostAvailable
+from cassandra import InvalidRequest
 
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://user:pass@db:5432/shortener")
+session = None
 
-engine = create_engine(DATABASE_URL)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-Base = declarative_base()
-
-class URLModel(Base):
-    __tablename__ = "urls"
-    short_id = Column(String, primary_key=True, index=True)
-    original_url = Column(String, nullable=False)
-    expires_at = Column(Float, nullable=False)
-
-def get_db():
-    db = SessionLocal()
+for attempt in range(15):
     try:
-        yield db
-    finally:
-        db.close()
+        print(f"[Cassandra-Write] Próba połączenia z klastrem ({attempt + 1}/15)...")
+        cluster = Cluster(['cassandra-node1'], port=9042)
+        session = cluster.connect()
+        print("[Cassandra-Write] Połączono pomyślnie z węzłem bazy danych!")
+        break
+    except NoHostAvailable:
+        print("[Cassandra-Write] Port 9042 nie jest jeszcze gotowy. Oczekiwanie 3 sekundy...")
+        time.sleep(3)
 
+if not session:
+    raise RuntimeError("Nie można nawiązać połączenia z klastrem Cassandra po 15 próbach.")
+
+for attempt in range(10):
+    try:
+        session.execute("""
+            CREATE KEYSPACE IF NOT EXISTS link_shortener
+            WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 2};
+        """)
+        session.set_keyspace('link_shortener')
+
+        session.execute("""
+            CREATE TABLE IF NOT EXISTS short_links (
+                short_id text PRIMARY KEY,
+                original_url text
+            );
+        """)
+        print("[Cassandra-Write] Struktura bazy danych została pomyślnie przygotowana.")
+        break
+    except InvalidRequest as e:
+        print(f"[Cassandra-Write] Klaster synchronizuje schemat, próba ({attempt + 1}/10). Oczekiwanie 2 sekundy...")
+        time.sleep(2)
+
+insert_stmt = session.prepare("INSERT INTO short_links (short_id, original_url) VALUES (?, ?)")
+
+
+def save_url(short_id: str, original_url: str):
+    session.execute(insert_stmt, (short_id, original_url))
+    print(f"[Cassandra] Zapisano: {short_id} -> {original_url}")

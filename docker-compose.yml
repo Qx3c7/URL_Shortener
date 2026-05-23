@@ -1,35 +1,63 @@
 services:
-  # Serwis bazy danych
-  db:
-    image: postgres:15
+  # Główny węzeł Cassandry (Seed Node)
+  cassandra-node1:
+    image: cassandra:4.1
+    container_name: cassandra-node1
+    ports:
+      - "9042:9042"
     environment:
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: pass
-      POSTGRES_DB: shortener
+      - CASSANDRA_CLUSTER_NAME=TestCluster
+      - CASSANDRA_ENDPOINT_SNITCH=GossipingPropertyFileSnitch
+      - MAX_HEAP_SIZE=512M
+      - HEAP_NEWSIZE=100M
+    volumes:
+      - cassandra-data1:/var/lib/cassandra
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U user -d shortener"]
-      interval: 5s
+      test: ["CMD-SHELL", "nodetool status || exit 1"]
+      interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 10
+
+  # Drugi węzeł Cassandry dołączający do klastra
+  cassandra-node2:
+    image: cassandra:4.1
+    container_name: cassandra-node2
+    environment:
+      - CASSANDRA_CLUSTER_NAME=TestCluster
+      - CASSANDRA_ENDPOINT_SNITCH=GossipingPropertyFileSnitch
+      - CASSANDRA_SEEDS=cassandra-node1
+      - MAX_HEAP_SIZE=512M
+      - HEAP_NEWSIZE=100M
+    volumes:
+      - cassandra-data2:/var/lib/cassandra
+    depends_on:
+      cassandra-node1:
+        condition: service_healthy
 
   # Serwis do tworzenia linków (POST /shorten)
   write-service:
     build: ./write_service
+    container_name: write-service
     ports:
       - "8000:8000"
-    environment:
-      DATABASE_URL: postgresql://user:pass@db:5432/shortener
+    volumes:
+      - ./write_service:/app
     depends_on:
-      db:
+      cassandra-node1:
         condition: service_healthy
 
   # Serwis do przekierowań (GET /{id})
   read-service:
     build: ./read_service
+    container_name: read-service
     ports:
       - "8001:8000"
-    environment:
-      DATABASE_URL: postgresql://user:pass@db:5432/shortener
+    volumes:
+      - ./read_service:/app
     depends_on:
-      db:
+      cassandra-node1:
         condition: service_healthy
+
+volumes:
+  cassandra-data1:
+  cassandra-data2:

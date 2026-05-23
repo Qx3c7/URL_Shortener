@@ -1,45 +1,34 @@
-import string
-import uuid
-import time
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, HttpUrl
-from sqlalchemy.orm import Session
-from database import URLModel, get_db, engine, Base 
+import string
+import random
+from database import save_url
 
-app = FastAPI(title="URL Shortener - Write Service")
-Base.metadata.create_all(bind=engine)
+app = FastAPI(title="Link Shortener - Write Service (NoSQL Cassandra)")
+
+
+class URLRequest(BaseModel):
+    target_url: HttpUrl
+
 
 def generate_short_id() -> str:
-    unique_id = uuid.uuid4().int >> 96
-    alphabet = string.digits + string.ascii_letters
-    arr = []
-    base = len(alphabet)
-    while unique_id:
-        unique_id, rem = divmod(unique_id, base)
-        arr.append(alphabet[rem])
-    arr.reverse()
-    return ''.join(arr)
+    characters = string.ascii_letters + string.digits
+    return ''.join(random.choice(characters) for _ in range(6))
 
-class ShortenRequest(BaseModel):
-    url: HttpUrl
 
 @app.post("/shorten")
-def shorten_url(payload: ShortenRequest, db: Session = Depends(get_db)):
+def shorten_url(request: URLRequest):
     short_id = generate_short_id()
-    
-    # Czas życia linku: 300 sekund
-    expiry_time = time.time() + 300
+    original_url = str(request.target_url)
 
-    db_url = URLModel(
-        short_id=short_id,
-        original_url=str(payload.url),
-        expires_at=expiry_time
-    )
-    
-    db.add(db_url)
-    db.commit()
-
-    return {
-        "short_url": f"http://localhost:8001/{short_id}",
-        "expires_at": expiry_time
-    }
+    try:
+        save_url(short_id, original_url)
+        return {
+            "short_id": short_id,
+            "short_url": f"http://localhost:8001/{short_id}"
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Błąd podczas zapisu w rozproszonej bazie danych: {str(e)}"
+        )
