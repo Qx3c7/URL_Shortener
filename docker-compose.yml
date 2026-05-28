@@ -58,6 +58,16 @@ services:
       cassandra-node1:
         condition: service_healthy
 
+  # Serwis czyszczący stare rekordy w tle (Cleaning Service)
+  cleaning-service:
+    build: ./cleaning_service
+    container_name: cleaning-service
+    volumes:
+      - ./cleaning_service:/app
+    depends_on:
+      cassandra-node1:
+        condition: service_healthy
+
 volumes:
   cassandra-data1:
   cassandra-data2:
