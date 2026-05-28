@@ -8,6 +8,7 @@ Aplikacja składa się z następujących komponentów:
 
 *   **Write Service (Port 8000)**: Odpowiada za przyjmowanie długich adresów URL, generowanie unikalnych identyfikatorów Base62 oraz zapisywanie danych w bazie.
 *   **Read Service (Port 8001)**: Obsługuje żądania przekierowań, sprawdza ważność linku i usuwa wygasłe wpisy.
+*   **Cleaning Service**: Autonomiczny serwis działający w tle, który cyklicznie skanuje bazę danych i usuwa przeterminowane rekordy na podstawie zewnętrznego pliku konfiguracyjnego config.properties.
 *   **Klaster Apache Cassandra (Port 9042)**: Składa się z dwóch niezależnych węzłów (cassandra-node1 jako Seed Node oraz cassandra-node2) zapewniających wysoką dostępność, odporność na awarie (Fault Tolerance) oraz replikację danych na poziomie klastra.
 
 ## Wymagania
@@ -20,7 +21,7 @@ Aplikacja składa się z następujących komponentów:
 1.  Sklonuj repozytorium.
 2.  W głównym folderze projektu uruchom komendę:
     ```powershell
-    docker-compose up --build
+    docker-compose up --build -d
     ```
 3.  Poczekaj, aż wszystkie kontenery zgłoszą status `Healthy` lub `Started`. 
 
@@ -44,6 +45,16 @@ curl -X POST http://localhost:8000/shorten -H "Content-Type: application/json" -
 Użyj **Read Service** działającego na porcie 8001, aby skorzystać z wygenerowanego linku.
 
 Adres: http://localhost:8001/{identyfikator}
+
+---
+
+## Koniguracja Cleaning Service
+Usługa czyszcząca pobiera parametry sterujące czasem życia linków z pliku cleaning_service/config.properties. Możliwa jest konfiugrcja nastepujących właściwości:
+* **ttl_mode** Tryb obliczania wieku wpisu.
+  * created - usuwa wpisy na podstawie czasu ich utworzenia
+  * acessed - usuwa wpisy na podstawie czasu ich ostatniego użycia
+* **ttl_value_seconds** Czas ważności linku wyrażony w sekundach.
+* **cleanup_interval_seconds** Interwał uruchamiania pętli skanjącej baze danych 
 
 ---
 
