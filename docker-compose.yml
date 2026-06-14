@@ -1,4 +1,15 @@
 services:
+  # Broker wiadomości
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      - RABBITMQ_DEFAULT_USER=guest
+      - RABBITMQ_DEFAULT_PASS=guest
+
   # Główny węzeł Cassandry (Seed Node)
   cassandra-node1:
     image: cassandra:4.1
@@ -45,6 +56,8 @@ services:
     depends_on:
       cassandra-node1:
         condition: service_healthy
+      rabbitmq:
+        condition: service_started
 
   # Serwis do przekierowań (GET /{id})
   read-service:
